@@ -36,6 +36,7 @@
             margin-top: 20px;
             white-space: pre-wrap;
             word-wrap: break-word;
+            min-height: 100px;
         }
         .loader {
             text-align: center;
@@ -51,7 +52,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        #copyButton {
+        .copy-button {
             padding: 6px 12px;
             font-size: 14px;
             background-color: #e0e0e0;
@@ -61,7 +62,7 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        #copyButton:hover {
+        .copy-button:hover {
             background-color: #ccc;
         }
     </style>
@@ -92,70 +93,125 @@
                 전체 삭제
             </button>
         </div>
-        <!-- Analysis Option -->
-        <div class="flex items-center pt-2 sm:pt-0">
-            <input type="checkbox" id="includeAnalysis" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-            <label for="includeAnalysis" class="ml-2 text-sm text-gray-700">내용 검증 및 분석 포함 (시간이 더 걸릴 수 있습니다)</label>
+        <!-- Analysis Options -->
+        <div class="flex items-center pt-2 sm:pt-0 space-x-4">
+            <div class="flex items-center">
+                <input type="checkbox" id="includeVerification" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <label for="includeVerification" class="ml-2 text-sm text-gray-700">내용 검증</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="includeSummary" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                <label for="includeSummary" class="ml-2 text-sm text-gray-700">내용 요약</label>
+            </div>
         </div>
     </div>
 
     <div class="header-with-button mt-8">
         <h2>✔️ 정리된 글 (맞춤법 수정)</h2>
-        <button id="copyButton" onclick="copyCleanedText()">복사하기</button>
+        <button class="copy-button" onclick="copyResult('cleanedOutput', this)">복사하기</button>
     </div>
     <div id="cleanedOutput" class="output-box">정리된 글이 여기에 표시됩니다.</div>
 
+    <div id="summaryContainer" style="display: none;">
+        <div class="header-with-button mt-8">
+            <h2>📝 내용 요약</h2>
+            <button class="copy-button" onclick="copyResult('summaryOutput', this)">복사하기</button>
+        </div>
+        <div id="summaryOutput" class="output-box">내용 요약 결과가 여기에 표시됩니다.</div>
+    </div>
+
     <div id="analysisContainer" style="display: none;">
-        <h2>🔬 내용 검증 및 분석</h2>
+        <div class="header-with-button mt-8">
+            <h2>🔬 내용 검증</h2>
+            <button class="copy-button" onclick="copyResult('analysisOutput', this)">복사하기</button>
+        </div>
         <div id="analysisOutput" class="output-box">내용 분석 결과가 여기에 표시됩니다.</div>
     </div>
 
     <script>
         const apiKeyInput = document.getElementById('apiKeyInput');
-
-        // 페이지 로드 시 localStorage에서 API 키 불러오기
         apiKeyInput.value = localStorage.getItem('geminiApiKey_textProcessor') || '';
-
-        // API 키가 변경될 때 localStorage에 저장하기
         apiKeyInput.addEventListener('input', () => {
             localStorage.setItem('geminiApiKey_textProcessor', apiKeyInput.value);
         });
         
         function clearAll() {
             document.getElementById('inputText').value = '';
-            document.getElementById('cleanedOutput').innerHTML = '정리된 글이 여기에 표시됩니다.';
-            
-            const analysisContainer = document.getElementById('analysisContainer');
-            analysisContainer.style.display = 'none';
-            document.getElementById('analysisOutput').innerHTML = '내용 분석 결과가 여기에 표시됩니다.';
-            document.getElementById('copyButton').textContent = '복사하기';
+            const outputs = ['cleanedOutput', 'summaryOutput', 'analysisOutput'];
+            const placeholders = ['정리된 글이 여기에 표시됩니다.', '내용 요약 결과가 여기에 표시됩니다.', '내용 분석 결과가 여기에 표시됩니다.'];
+            outputs.forEach((id, index) => {
+                document.getElementById(id).innerHTML = placeholders[index];
+            });
+
+            document.getElementById('summaryContainer').style.display = 'none';
+            document.getElementById('analysisContainer').style.display = 'none';
+
+            document.querySelectorAll('.copy-button').forEach(btn => btn.textContent = '복사하기');
         }
 
-        function copyCleanedText() {
-            const textToCopy = document.getElementById('cleanedOutput').innerText;
-            const copyButton = document.getElementById('copyButton');
+        function copyResult(elementId, buttonElement) {
+            const element = document.getElementById(elementId);
+            const textToCopy = element.innerText;
             
             if (!textToCopy || textToCopy.includes('여기에 표시됩니다')) {
                 alert('복사할 내용이 없습니다.');
                 return;
             }
 
-            const tempTextArea = document.createElement('textarea');
-            tempTextArea.value = textToCopy;
-            document.body.appendChild(tempTextArea);
-            tempTextArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempTextArea);
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                buttonElement.textContent = '복사 완료!';
+                setTimeout(() => {
+                    buttonElement.textContent = '복사하기';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                alert('복사에 실패했습니다.');
+            });
+        }
 
-            copyButton.textContent = '복사 완료!';
-            setTimeout(() => {
-                copyButton.textContent = '복사하기';
-            }, 2000);
+        function simpleMarkdownToHtml(md) {
+            if (!md) return '';
+            let escapedMd = md.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            escapedMd = escapedMd.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            return escapedMd;
+        }
+
+        // ✨ API 호출을 위한 범용 함수
+        async function callGeminiAPI(apiKey, systemPrompt, userQuery) {
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const finalPrompt = systemPrompt + `\n\n최종 결과물은 반드시 아래와 같은 JSON 형식으로 반환해주세요.\n\n${userQuery}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: finalPrompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                }
+            };
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json();
+                throw new Error(`API 요청 실패: ${response.status} ${response.statusText} - ${errorBody.error?.message || '알 수 없는 오류'}`);
+            }
+
+            const data = await response.json();
+            const candidate = data.candidates?.[0];
+            const rawJsonText = candidate?.content?.parts?.[0]?.text;
+
+            if (rawJsonText) {
+                return JSON.parse(rawJsonText);
+            } else {
+                throw new Error('API 응답에서 유효한 텍스트를 찾을 수 없습니다.');
+            }
         }
 
         async function processText() {
             const API_KEY = apiKeyInput.value.trim();
-
             if (!API_KEY) {
                 alert("Gemini API 키를 입력 필드에 입력해주세요.");
                 return;
@@ -171,116 +227,82 @@
             const cleanedDiv = document.getElementById('cleanedOutput');
             const analysisContainer = document.getElementById('analysisContainer');
             const analysisDiv = document.getElementById('analysisOutput');
-            const includeAnalysisCheckbox = document.getElementById('includeAnalysis');
+            const summaryContainer = document.getElementById('summaryContainer');
+            const summaryDiv = document.getElementById('summaryOutput');
+            const includeVerification = document.getElementById('includeVerification').checked;
+            const includeSummary = document.getElementById('includeSummary').checked;
 
             processButton.disabled = true;
-            processButton.textContent = "처리 중...";
+            const originalButtonText = processButton.innerHTML;
+            processButton.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>처리 중...`;
+            
+            // UI 초기화
             cleanedDiv.innerHTML = '<div class="loader">AI가 글을 정리하고 있습니다...</div>';
-            
-            if(includeAnalysisCheckbox.checked) {
-                analysisContainer.style.display = 'block';
-                analysisDiv.innerHTML = '<div class="loader">AI가 내용을 분석하고 있습니다...</div>';
-            } else {
-                analysisContainer.style.display = 'none';
-            }
-
-            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
-            
-            let systemPrompt = `
-                당신은 글을 정리하고 분석하는 AI 어시스턴트입니다. 다음 요청사항을 정확히 수행해주세요.
-
-                요청사항:
-                1. 주어진 원본 글을 내용의 주제별로 문단을 나누어 가독성 좋게 재구성해주세요. (같은 주제는 붙이고, 다른 주제는 한 줄 띄기)
-                2. 명백한 맞춤법 오류나 오타는 수정해주세요.
-                3. 하지만 사용자가 의도적으로 쓴 것으로 보이는 비속어(예: '자빠졌는데', '개작살', '깝치다' 등)는 수정하지 말고 그대로 유지해주세요.
-            `;
-
-            let jsonStructure = `
-                5. 최종 결과물은 반드시 아래와 같은 JSON 형식으로 반환해주세요.
-
-                {
-                  "cleanedText": "여기에 1, 2, 3번 요청에 따라 정리된 글 전문을 넣으세요."
-                }
-            `;
-
-            if (includeAnalysisCheckbox.checked) {
-                systemPrompt += `
-                4. 수정된 글과는 별개로, 원본 글의 내용에 대한 '종합 검증 및 분석'을 제공해주세요. 분석에는 전반적인 요약, 주요 주장, 표현 방식, 검증 포인트(사실과 주장의 구분), 최종 결론이 포함되어야 합니다.
-                `;
-                jsonStructure = `
-                5. 최종 결과물은 반드시 아래와 같은 JSON 형식으로 반환해주세요.
-
-                {
-                  "cleanedText": "여기에 1, 2, 3번 요청에 따라 정리된 글 전문을 넣으세요.",
-                  "analysis": "여기에 4번 요청에 따라 마크다운 형식으로 작성된 분석 내용을 넣으세요."
-                }
-                `;
-            }
-
-            const finalPrompt = systemPrompt + jsonStructure;
-            const userQuery = `[원본 글]\n---\n${userText}\n---`;
-
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: {
-                    parts: [{ text: finalPrompt }]
-                },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                }
-            };
+            analysisContainer.style.display = includeVerification ? 'block' : 'none';
+            summaryContainer.style.display = includeSummary ? 'block' : 'none';
+            if(includeVerification) analysisDiv.innerHTML = '<div class="loader">AI가 내용을 검증하고 있습니다...</div>';
+            if(includeSummary) summaryDiv.innerHTML = '<div class="loader">AI가 내용을 요약하고 있습니다...</div>';
 
             try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorBody = await response.json();
-                    throw new Error(`API 요청 실패: ${response.status} ${response.statusText} - ${errorBody.error?.message || '알 수 없는 오류'}`);
-                }
-
-                const data = await response.json();
-                const candidate = data.candidates?.[0];
-                const rawJsonText = candidate?.content?.parts?.[0]?.text;
-
-                if (rawJsonText) {
-                    const parsedData = JSON.parse(rawJsonText);
-                    
-                    if (parsedData.cleanedText) {
-                        cleanedDiv.textContent = parsedData.cleanedText;
-                    } else {
-                        throw new Error('API 응답 JSON에 cleanedText 키가 없습니다.');
-                    }
-
-                    if (includeAnalysisCheckbox.checked) {
-                        if (parsedData.analysis) {
-                            let analysisHtml = parsedData.analysis;
-                            analysisHtml = analysisHtml.replace(/## (.*)/g, '<h3>$1</h3>');
-                            analysisHtml = analysisHtml.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-                            analysisHtml = analysisHtml.replace(/-\s(.*)/g, '<li>$1</li>')
-                                                 .replace(/(<\/li>)(?!<ul>)/g, '</li></ul>')
-                                                 .replace(/(<li>)/g, '<ul>$1');
-                            analysisDiv.innerHTML = analysisHtml;
-                        } else {
-                             analysisDiv.innerHTML = '<p>분석 결과를 가져오는 데 실패했습니다.</p>';
-                        }
-                    }
+                // --- 1단계: 글 정리 (항상 실행) ---
+                const cleaningPrompt = `
+                    당신은 글을 정리하는 AI 어시스턴트입니다. 다음 요청사항을 정확히 수행해주세요.
+                    1. 주어진 원본 글을 내용의 주제별로 문단을 나누어 가독성 좋게 재구성해주세요.
+                    2. 명백한 맞춤법 오류나 오타는 수정해주세요.
+                    3. 하지만 사용자가 의도적으로 쓴 것으로 보이는 비속어는 수정하지 말고 그대로 유지해주세요.`;
+                const cleaningQuery = `{"cleanedText": "여기에 1, 2, 3번 요청에 따라 정리된 글 전문을 넣으세요."}\n\n[원본 글]\n---\n${userText}\n---`;
                 
-                } else {
-                    throw new Error('API 응답에서 유효한 텍스트를 찾을 수 없습니다.');
+                const cleaningResult = await callGeminiAPI(API_KEY, cleaningPrompt, cleaningQuery);
+                
+                if (!cleaningResult.cleanedText) throw new Error('글 정리 결과를 가져오지 못했습니다.');
+                
+                const cleanedText = cleaningResult.cleanedText;
+                cleanedDiv.textContent = cleanedText;
+
+                // --- 2단계 & 3단계: 요약 및 검증 (선택적으로, 병렬 실행) ---
+                const optionalTasks = [];
+
+                if (includeSummary) {
+                    const summaryTask = (async () => {
+                        try {
+                            const summaryPrompt = `당신은 글을 요약하는 AI 전문가입니다. 주어진 글의 내용을 각 주제별로 상세하게 요약해주세요. 각 문단별 핵심 내용을 포함하여 충분한 길이로 작성하고, **중요한 키워드나 문장은 마크다운 형식(\`**굵은 글씨**\`)으로 강조해주세요.**`;
+                            const summaryQuery = `{"summary": "여기에 요약된 글을 마크다운 형식으로 넣으세요."}\n\n[원본 글]\n---\n${cleanedText}\n---`;
+                            const summaryResult = await callGeminiAPI(API_KEY, summaryPrompt, summaryQuery);
+                            if (!summaryResult.summary) throw new Error();
+                            summaryDiv.innerHTML = simpleMarkdownToHtml(summaryResult.summary);
+                        } catch (e) {
+                            summaryDiv.innerHTML = '<p class="error-message">요약 결과를 가져오는 데 실패했습니다.</p>';
+                        }
+                    })();
+                    optionalTasks.push(summaryTask);
                 }
+
+                if (includeVerification) {
+                    const analysisTask = (async () => {
+                        try {
+                            const analysisPrompt = `당신은 글을 분석하는 AI 전문가입니다. 주어진 글의 내용에 대한 '종합 검증 및 분석'을 제공해주세요. 분석에는 전반적인 요약, 주요 주장, 표현 방식, 검증 포인트(사실과 주장의 구분), 최종 결론이 포함되어야 합니다. **중요한 키워드나 결론은 마크다운 형식(\`**굵은 글씨**\`)으로 강조해주세요.**`;
+                            const analysisQuery = `{"analysis": "여기에 분석 내용을 마크다운 형식으로 넣으세요."}\n\n[원본 글]\n---\n${cleanedText}\n---`;
+                            const analysisResult = await callGeminiAPI(API_KEY, analysisPrompt, analysisQuery);
+                            if (!analysisResult.analysis) throw new Error();
+                            analysisDiv.innerHTML = simpleMarkdownToHtml(analysisResult.analysis);
+                        } catch (e) {
+                            analysisDiv.innerHTML = '<p class="error-message">분석 결과를 가져오는 데 실패했습니다.</p>';
+                        }
+                    })();
+                    optionalTasks.push(analysisTask);
+                }
+                
+                await Promise.all(optionalTasks);
+
             } catch (error) {
+                const errorMessageText = `<p class="error-message">오류 상세 정보:</p><p>${error.message}</p>`;
                 cleanedDiv.innerHTML = `<p class="error-message">오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>`;
-                if (includeAnalysisCheckbox.checked) {
-                    analysisDiv.innerHTML = `<p class="error-message">오류 상세 정보:</p><p>${error.message}</p>`;
-                }
+                if(includeVerification) analysisDiv.innerHTML = errorMessageText;
+                if(includeSummary) summaryDiv.innerHTML = errorMessageText;
                 console.error('Error:', error);
             } finally {
                 processButton.disabled = false;
-                processButton.textContent = "정리하기";
+                processButton.innerHTML = originalButtonText;
             }
         }
     </script>
